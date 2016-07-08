@@ -14,11 +14,7 @@ prerequisites:
 description: it reads the apache2.conf and prints which files will be read by apache (mods-enabled, sites-enabled. ports.conf, conf-enabled)
              it also reads each of these files (and apache2.conf) and print the configuration (see example)
 
-options:
-    type:
-        required: True 
-        description: ["The wanted config file data type"]
-        choices: ['configuration','enabled']
+
 '''
 
 EXAMPLES = '''
