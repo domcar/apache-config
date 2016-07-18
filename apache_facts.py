@@ -1,6 +1,9 @@
-#!/bin/usr/python
+#!/usr/bin/python
 
 import sys, json, os, re, glob, platform
+import StringIO
+from subprocess import Popen, PIPE
+import subprocess
 
 DOCUMENTATION = '''
 ---
@@ -14,7 +17,11 @@ prerequisites:
 description: it reads the apache2.conf and prints which files will be read by apache (mods-enabled, sites-enabled. ports.conf, conf-enabled)
              it also reads each of these files (and apache2.conf) and print the configuration (see example)
 
-
+options:
+    type:
+        required: True 
+        description: ["The wanted config file data type"]
+        choices: ['configuration','enabled']
 '''
 
 EXAMPLES = '''
@@ -140,33 +147,23 @@ def files_folders():
 enabled = {}
 enabled['enabled_modules'] = {}
 all_files, all_folders = files_folders()
+#print all_files, all_folders
 all_modules = [] 
+# here we findi out which modules are enabled
+if platform.dist()[0] == 'Ubuntu':
+    service1 = subprocess.Popen(['apache2ctl', '-M'], stdout=PIPE).communicate()[0]
+    stream = StringIO.StringIO(service1)
+else:
+    service1 = subprocess.Popen(['httpd', '-M'], stdout=PIPE).communicate()[0]
+    stream = StringIO.StringIO(service1)
+for line in stream:
+    if 'module' in line:
+        module_name = 'mod_'+line.split()[0].replace('_module','')
+        all_modules.append(module_name)
+
 for file_path in all_files:
     file_name = os.path.basename(file_path)
     folder_name= os.path.dirname(file_path).rsplit("/",1)[1]                                             
-    if folder_name == "mods-enabled" or folder_name == "conf.modules.d": # this IF checks which modules are enabled
-       if ".load" in file_path or folder_name == "conf.modules.d":
-           with open(file_path,'r') as f:                                                                    
-                for line in  f:
-                    line = line.lstrip()
-                    if re.match('<',line):
-                       ifmodule = "mod_"+line.split()[1].replace('>',"").replace("_module",".so")
-                       check_module(f,all_modules,ifmodule)
-                       continue
-                    elif re.match('Load',line):
-                       module_name = line.rsplit("/",1)[1].strip('\n')
-                       all_modules.append(module_name)
-                    else:
-                      continue
-    if file_path == '/etc/apache2/apache2.conf' or file_path == '/etc/httpd/conf/httpd.conf': # # this IF checks which modules are enabled (for centos6)
-       with open(file_path,'r') as f:
-                for line in  f:
-                    line = line.lstrip()
-                    if re.match('Load',line):
-                       module_name = line.rsplit("/",1)[1].strip('\n')
-                       all_modules.append(module_name)
-                    else:
-                      continue
     if all_modules:
        for each in all_modules:
            enabled['enabled_modules'][each] = 'enabled' 
@@ -204,7 +201,7 @@ for file_path in all_files:
            if key in configuration[folder_name][file_name]:
                configuration[folder_name][file_name][key] = configuration[folder_name][file_name][key]+"; " + value
            else:
-               configuration[folder_name][file_name][key] = value 
+               configuration[folder_name][file_name][key] = value
 
 with open('risultato.txt','w') as outfile:
      json.dump(enabled,outfile,indent=1)
