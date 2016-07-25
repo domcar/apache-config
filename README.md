@@ -2,4 +2,4 @@
 print in json format the apache configuration 
 
 usage:
-sudo python apache_facts.py
+sudo python nuovo_apache.py
