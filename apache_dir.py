@@ -57,6 +57,11 @@ def what_is(line):
     if re.match('</IfDefine', line):
        return 'endIfDefine'
 
+    if re.match('<Directory ', line): # notice the space
+       return 'Directory'
+    if re.match('</Directory>', line):
+       return 'endDirectory'
+
     if re.match('<[a-z-A-Z]',line):
        return 'section'
     if re.match('</',line):
@@ -142,6 +147,11 @@ def parse_apache(old, new):
            print >> new, line.strip("\n")
         if result == 'end':
            print >> new, line.strip("\n")
+
+        if result == 'Directory':
+           print >> new, line.strip("\n")
+        if result == 'endDirectory':
+           print >> new, line.strip("\n")
    
         if result == 'IfModule':
            check_IFmodule(line, old, new)
@@ -152,6 +162,67 @@ def parse_apache(old, new):
            check_IfDefine(line, old, new)
         if result == 'endIfDefine':
            return
+
+class Directory(object):
+   'Common base class for all directory sections'
+
+   def __init__(self, key):
+      self.name = key
+   
+def create_dir(line,f,name):
+    obj = Directory(name)
+    for line in f:
+        result = what_is(line)
+        if result == 'endDirectory':
+           return obj
+        else:
+           key = line.split()[0]
+           value = line.split(key)[1]
+           setattr(obj,key, value)
+
+def find_dir():
+    f = open ('parsed')
+    global all_dirs
+    all_dirs = []
+    global all_obj
+    all_obj = []
+    for line in f:
+        result = what_is(line)
+        if result == 'Directory':
+           try:
+               name = line.lstrip().split()[1].replace('>','').strip("\"")
+           except:
+               name = line.lstrip().split()[1].replace('>','')
+           all_dirs.append(name)
+           all_obj.append(create_dir(line,f,name))
+    all_dirs.sort(reverse=True)
+    all_obj.sort(reverse=True)
+    set_parent()
+    print_parent()
+
+def check_parenthood(child,parent):
+    if parent in child:
+       if parent == child:
+          return
+       else:
+          return 'parent'
+
+def set_parent():
+    for child in all_dirs:
+        for parent in all_dirs:
+           if check_parenthood(child,parent) == 'parent':
+              for each in all_obj: 
+                  if each.name == child:
+                     #print 'Setting parent ' +parent +' for child ' +each.name
+                     setattr(each,'parent',parent)
+              break
+
+def print_parent():
+    for each in all_obj:
+        try:
+           print each.name +' has as parent ' +each.parent
+        except:
+           print each.name +' has no parent'
 
 
 if __name__ == "__main__":
@@ -175,4 +246,5 @@ if __name__ == "__main__":
     parse_apache(input_file, parsed)
     parsed.close()
 
-   
+
+    find_dir() 
