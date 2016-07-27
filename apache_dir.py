@@ -176,8 +176,8 @@ def parse_apache(old, new):
 
 ################### Creating objects and setting parents  ############
 
-# we need an object that can hold the information of each <Direcotry>
-# so, each time we encounted a <Directory> we crate an object and each Directives will be added as object attribute
+# we need an object that can hold the information of each <Directory>
+# so, each time we encounter a <Directory> we crate an object and relative attributes
 class Directory(object):
    'Common base class for all directory sections'
 
@@ -212,76 +212,73 @@ def append_to_obj(f,obj):
 # this is the main function that read the file and when finds <Directory> it call the create function
 def find_dir():
     f = open ('parsed')
-    TAG = 'general'  # if the directory is located in the global keys
+    TAG = 'general'                                         # we need TAG to know where the <Directory> is located: in the general config of in a VirtualHost
     for line in f:
         result = what_is(line)
         if result == 'VirtualHost':
-           TAG = line.lstrip().split()[1].replace(">","")   # in case the directory is nested in a VirtualHost
+           TAG = line.lstrip().split()[1].replace(">","")   # setting the TAG
         if result == 'Directory':
            try:
                name = line.lstrip().split()[1].replace('>','').strip("\"")
            except:
                name = line.lstrip().split()[1].replace('>','')
-           if name in all_dirs:
-              for obj in all_obj:
+           if name in all_dirs:                             # if the directory has been already defined previuosly in the file
+              for obj in all_obj:                           # we have only to add the attributes, no need to create a new object
                   if obj.name == name:
                      append_to_obj(f,obj)
-           else:
+           else:                                            # otherwise we create a new object
               all_dirs.append(name)
               all_obj.append(create_object(line,f,name,TAG))
         if result == 'endVirtualHost':
            TAG = 'general'
 
-    all_dirs.sort(reverse=True)
+    all_dirs.sort(reverse=True)                             # the reason to have a list of names is for the set_parent options
     all_obj.sort(reverse=True)
+    f.close()
     set_parent()
 
-def check_parenthood(child,parent):
-    for each in all_obj:
-        if child == each.name:
-           obj_child = each
-        if parent == each.name:
-           obj_parent = each
+def find_object(name):
+    for obj in all_obj:
+        if obj.name == name:
+           return obj
 
-    if parent in child:
-       if parent == child:
+def check_parenthood(child,parent):
+    obj_child = find_object(child)
+    obj_parent = find_object(parent)
+
+    if parent in child:                                   # we compare the 2 strings, if parent is contained in child, e.g, /var is parent of /var/www
+       if parent == child:                                
           return 'notparent'
        else:
-          if obj_parent.TAG == 'general' or obj_parent.TAG == obj_child.TAG:
+          if obj_parent.TAG == 'general' or obj_parent.TAG == obj_child.TAG:    # but we check also the TAG to be sure it is a parent
              return 'parent'
           else:
              return 'notparent'
 
 # once we have all object we should set a parent for each of them
-# so that for each <Directory> we can inherit what has been already set for the parent
 def set_parent():
     for child in all_dirs:
         for parent in all_dirs:
            if check_parenthood(child,parent) == 'parent':
-              for each in all_obj:
-                  if each.name == child:
-                     setattr(each,'parent',parent)
+              obj = find_object(child)
+              setattr(obj,'parent',parent)
               break
 
 
 
 ######### Merging ######################
 def check_directives():
-    all_dirs.sort()
-    for each in all_dirs:
-        for obj in all_obj:
-            if obj.name == each:
-#              print "Prima: ", vars(obj)
-              options = check_options(obj)
-              check_other_directives(obj)
-#              print "Dopo: ", vars(obj)
-              break
+    all_dirs.sort()                    # in alphabetical order, that is, parent-->child order
+    for directory in all_dirs:
+        obj = find_object(directory)
+        options = check_options(obj)
+        check_other_directives(obj)
 
 def merge_options(child_options,parent_options):
     final = []
     for each in child_options:
         if re.match('\+',each):
-            final.append(each)
+            final.append(each.replace("+",""))
     for each in parent_options:
         if '-'+each in child_options:
            continue
@@ -291,14 +288,9 @@ def merge_options(child_options,parent_options):
            final.append(each)
     return ' '.join(final)
 
-def find_parent(child):
-    for parent in all_obj:
-        if parent.name == child.parent:
-           return parent
-
 def check_options(child):
     if hasattr(child,'parent'):
-       parent = find_parent(child)
+       parent = find_object(child.parent)
        parent_options = parent.Options.split()
        try:
           child_options = child.Options.split()
@@ -324,7 +316,7 @@ def check_options(child):
 def check_other_directives(child):
     if hasattr(child,'parent'):
        dict_directives_child = vars(child)
-       parent = find_parent(child)
+       parent = find_object(child.parent)
        dict_directives_parent = vars(parent)
        for directive in dict_directives_parent:
            if directive not in dict_directives_child:
@@ -342,18 +334,17 @@ def jump_directory(f):
         else:
            continue
 
-def write_new_directory(f1,line):
+def write_new_directory(f1,line,indent):
     print >> f1, line.strip("\n")
     try:
        name = line.lstrip().split()[1].replace('>','').strip("\"")
     except:
        name = line.lstrip().split()[1].replace('>','')
-    for each in all_obj:
-       if each.name == name:
-          for uno in vars(each):
-              if uno == 'parent' or uno == 'name' or uno == 'TAG':
-                 continue
-              print >> f1, uno, vars(each)[uno].strip("\n")
+    obj = find_object(name)
+    for uno in vars(obj):
+        if uno == 'parent' or uno == 'name' or uno == 'TAG':
+           continue
+        print >> f1, indent, uno, vars(obj)[uno].strip("\n")
     return
 
 def print_final():
@@ -362,11 +353,10 @@ def print_final():
     for line in f:
         result = what_is(line)
         if result == 'Directory':
+           indent = line.split("<")[0]+'  '
            jump_directory(f)
-           write_new_directory(f1,line)
-           print >> f1, '</Directory>'
-           
-           
+           write_new_directory(f1,line,indent)
+           print >> f1, indent, '</Directory>'
         else:
            print >> f1, line.strip("\n")
     
@@ -397,18 +387,16 @@ if __name__ == "__main__":
     parsed.close()
 
 
-##### Creating objects and setting parents ########
-    global all_dirs
+##### Creating objects for <Directory> and setting parents ########
+    global all_dirs    # it will store the name of each <Directory> section
     all_dirs = []
-    global all_obj
+    global all_obj     # it will store the object relative to each <Directory>
     all_obj = []
-    find_dir() 
+    find_dir()        
 
 
-########## Merging ###############
-
+########## Merging <Directory>  ###############
     check_directives()
 
 ######### Print final config ###############
-    
     print_final()
