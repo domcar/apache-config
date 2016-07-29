@@ -1,4 +1,4 @@
-# apache configuration
+# shows complete apache configuration
 print in json format the apache configuration 
 
 usage:
