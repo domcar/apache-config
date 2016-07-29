@@ -28,7 +28,9 @@ Now that we have a file without \<IfModule\> or \<IfDefine\> we can focuse on ot
 4. __Merging__: Now we can finally merge the <Directory> sections. Each child will inherit from the parent its directives if that directive is not already set in child. Options directive behave differently because they inherit from parent only if all Options have a + or - before them, otherwise will remain as they are.
 
 
-EXAMPLES = '''
+EXAMPLES = 
+
+```json
 "clara_apache_configuration": {
         "@": "server_config",                   -----> here we are in the global configuration of apache
         "AccessFileName": ".htaccess",
