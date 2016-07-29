@@ -233,7 +233,7 @@ def directory_name(line):
 # this is the main function that read the file and when finds <Directory> it call the create function
 # <Directory> can be only in general config or inside a <VirtualHost>
 def find_directory():
-    f = open ('parsed')
+    f = StringIO.StringIO(parsed.getvalue())
     TAG = 'general'                                         # we need TAG to know where the <Directory> is located: in the general config of in a VirtualHost
     for line in f:
         result = what_is(line)
@@ -248,8 +248,6 @@ def find_directory():
 
         if result == 'endVirtualHost':
            TAG = 'general'
-
-    f.close()
 
 
 ########### setting parent to each <Directory> object ##############
@@ -362,8 +360,8 @@ def write_new_directory(f1,line,indent):
     return
 
 def print_final():
-    f = open('parsed')
-    f1 = open('parsed_finale','aw')
+    f = StringIO.StringIO(parsed.getvalue())
+    f1 = parsed_final
     for line in f:
         result = what_is(line) 
         if result == 'Directory':
@@ -375,8 +373,6 @@ def print_final():
            if re.match('Add(Icon|Language|Charset)',line.lstrip()):
               continue
            print >> f1, line.strip("\n")
-    f.close()
-    f1.close()
 
 
 
@@ -440,29 +436,30 @@ if __name__ == "__main__":
     # this function will start reading the main config file and print each line; when it finds an Include, it will read in aplphabetical order each file and then return to the main;
     # when it finds LoadModule or Define, it will store these into the global vars all_modules and all_defines;
     # the IfModule and IfDefine are evaluated as they are found because Apache evaluates them at startup; in case condition is not met, the all section will be jumped, else, printed
-    parsed = open('parsed','aw')
+    global parsed
+    parsed = StringIO.StringIO()
     parse_apache(input_file, parsed)
-    parsed.close()
 
 
 ##### Creating objects for <Directory> ########
     global all_dirs
     all_dirs = {}
     find_directory()
-    
 
-#### Setting parent for each <Directory> object ###########
+##### Setting parent for each <Directory> object ###########
     set_parent()
 
 ########## Merging <Directory>  ###############
     merge_directory_sections()
 
 ######### Print final config ###############
+    global parsed_final
+    parsed_final = StringIO.StringIO()
     print_final()
 
 ######## make json ########################
-    f = open('parsed_finale')
     attribute = 'server_config'
+    f = StringIO.StringIO(parsed_final.getvalue())
     config = make_json(f, attribute)
     with open('risultato.json','w') as outfile:
          json.dump(config,outfile,indent=3, sort_keys=False)
