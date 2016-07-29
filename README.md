@@ -64,7 +64,7 @@ EXAMPLES =
                     "-all +TLSv1 +TLSv1.1 +TLSv1.2"
                 ],
                 "ServerAlias": "review.int.de.clara.net",
-'''
+
 
 
 
