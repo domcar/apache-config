@@ -1,4 +1,4 @@
-# apache_facts
+# apache configuration
 print in json format the apache configuration 
 
 usage:
